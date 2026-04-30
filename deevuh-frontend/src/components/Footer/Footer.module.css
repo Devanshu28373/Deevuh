@@ -1,0 +1,134 @@
+.footer {
+  background: var(--black);
+  color: var(--white);
+  padding: 64px 0 24px;
+}
+
+.footerInner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1.5fr;
+  gap: 48px;
+}
+
+.footerBrand .logo {
+  height: 40px;
+  margin-bottom: 16px;
+  filter: brightness(0) invert(1);
+}
+
+.footerBrand p {
+  color: var(--gray-400);
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 280px;
+}
+
+.footerCol h4 {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  margin-bottom: 20px;
+  letter-spacing: 0.5px;
+}
+
+.footerCol ul {
+  list-style: none;
+}
+
+.footerCol li {
+  margin-bottom: 10px;
+}
+
+.footerCol a {
+  color: var(--gray-400);
+  font-size: 14px;
+  transition: color var(--transition-fast);
+}
+
+.footerCol a:hover {
+  color: var(--white);
+}
+
+.newsletter p {
+  color: var(--gray-400);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.emailForm {
+  display: flex;
+  gap: 8px;
+}
+
+.emailForm input {
+  flex: 1;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-size: 14px;
+}
+
+.emailForm input::placeholder {
+  color: var(--gray-400);
+}
+
+.emailForm button {
+  padding: 12px 24px;
+  background: var(--ruby);
+  color: var(--white);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  transition: background var(--transition-fast);
+}
+
+.emailForm button:hover {
+  background: var(--ruby-dark);
+}
+
+.footerBottom {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 24px var(--container-padding) 0;
+  margin-top: 48px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footerBottom p {
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
+.socialLinks {
+  display: flex;
+  gap: 16px;
+}
+
+.socialLinks a {
+  color: var(--gray-400);
+  transition: color var(--transition-fast);
+}
+
+.socialLinks a:hover {
+  color: var(--white);
+}
+
+@media (max-width: 768px) {
+  .footerInner {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .footerInner {
+    grid-template-columns: 1fr;
+  }
+}
