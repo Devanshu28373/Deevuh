@@ -1,13 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import * as dotenv from 'dotenv';
+dotenv.config();
+import prisma from '../src/config/database';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -59,116 +53,140 @@ async function main() {
   console.log(`  ✅ ${categories.length} categories created`);
 
   // ─── Products (matching homepage) ───
-  const [dresses, coats, separates] = categories;
+  const [dresses, coats, separates, ethnic] = categories;
 
   const products = await Promise.all([
     prisma.product.upsert({
-      where: { slug: 'amelia-satin-dress' },
+      where: { slug: 'baby-blue-coordset' },
       update: {},
       create: {
-        name: 'Amelia Satin Dress',
-        slug: 'amelia-satin-dress',
-        description: 'A luxurious satin dress with a cowl neckline and flowing silhouette. Perfect for evening events and special occasions.',
-        shortDescription: 'Luxurious satin with cowl neckline',
-        basePrice: 2450000, // ₹24,500
-        categoryId: dresses.id,
-        images: ['/images/amelia.png'],
-        tags: ['satin', 'evening', 'premium'],
-        occasion: 'Evening',
-        fabric: '100% Mulberry Silk Satin',
-        careInstructions: 'Dry clean only',
+        name: 'Baby Blue Coordset',
+        slug: 'baby-blue-coordset',
+        description: 'A beautiful baby blue coordset perfect for casual outings.',
+        shortDescription: 'Baby blue casual coordset',
+        basePrice: 199900, // ₹1,999
+        categoryId: separates.id,
+        images: ['/images/products/baby_blue.jpg'],
+        tags: ['coordset', 'blue', 'casual'],
+        occasion: 'Casual',
+        fabric: 'Cotton Blend',
+        careInstructions: 'Machine wash',
         isFeatured: true,
         avgRating: 4.8,
         reviewCount: 24,
         variants: {
           create: [
-            { sku: 'ASD-DR-XS', size: 'XS', color: 'Deep Red', colorHex: '#98111E', stockQuantity: 5, price: 2450000 },
-            { sku: 'ASD-DR-S', size: 'S', color: 'Deep Red', colorHex: '#98111E', stockQuantity: 12 },
-            { sku: 'ASD-DR-M', size: 'M', color: 'Deep Red', colorHex: '#98111E', stockQuantity: 8 },
-            { sku: 'ASD-DR-L', size: 'L', color: 'Deep Red', colorHex: '#98111E', stockQuantity: 6 },
+            { sku: 'BBC-S', size: 'S', color: 'Baby Blue', colorHex: '#89CFF0', stockQuantity: 15, price: 199900 },
+            { sku: 'BBC-M', size: 'M', color: 'Baby Blue', colorHex: '#89CFF0', stockQuantity: 12 },
+            { sku: 'BBC-L', size: 'L', color: 'Baby Blue', colorHex: '#89CFF0', stockQuantity: 8 },
           ],
         },
       },
     }),
     prisma.product.upsert({
-      where: { slug: 'cassian-wool-coat' },
+      where: { slug: 'beige-outfit' },
       update: {},
       create: {
-        name: 'Cassian Wool Coat',
-        slug: 'cassian-wool-coat',
-        description: 'A double-breasted wool coat with military-inspired buttons and a structured silhouette. Timeless outerwear for the modern woman.',
-        shortDescription: 'Double-breasted wool with military buttons',
-        basePrice: 3480000, // ₹34,800
-        compareAtPrice: 3900000, // ₹39,000
-        categoryId: coats.id,
-        images: ['/images/cassian.png'],
-        tags: ['wool', 'winter', 'coat', 'premium'],
-        occasion: 'Casual',
-        fabric: '80% Wool, 20% Cashmere',
-        careInstructions: 'Professional dry clean recommended',
+        name: 'Beige Outfit',
+        slug: 'beige-outfit',
+        description: 'An elegant beige outfit for formal and casual wear.',
+        shortDescription: 'Elegant beige outfit',
+        basePrice: 269900, // ₹2,699
+        categoryId: dresses.id,
+        images: ['/images/products/beige_outfit.jpg'],
+        tags: ['beige', 'outfit', 'elegant'],
+        occasion: 'Formal',
+        fabric: 'Linen Blend',
+        careInstructions: 'Dry clean recommended',
         isFeatured: true,
         avgRating: 4.5,
         reviewCount: 18,
         variants: {
           create: [
-            { sku: 'CWC-CR-S', size: 'S', color: 'Cream', colorHex: '#FDF0D5', stockQuantity: 4 },
-            { sku: 'CWC-CR-M', size: 'M', color: 'Cream', colorHex: '#FDF0D5', stockQuantity: 7 },
-            { sku: 'CWC-CR-L', size: 'L', color: 'Cream', colorHex: '#FDF0D5', stockQuantity: 3 },
+            { sku: 'BO-S', size: 'S', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 10, price: 269900 },
+            { sku: 'BO-M', size: 'M', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 14 },
+            { sku: 'BO-L', size: 'L', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 6 },
           ],
         },
       },
     }),
     prisma.product.upsert({
-      where: { slug: 'skylar-blouse' },
+      where: { slug: 'brown-coordsets' },
       update: {},
       create: {
-        name: 'Skylar Blouse',
-        slug: 'skylar-blouse',
-        description: 'A relaxed-fit silk blouse with French cuffs and a subtle sheen. Versatile enough for office to evening.',
-        shortDescription: 'Relaxed silk with French cuffs',
-        basePrice: 1490000, // ₹14,900
+        name: 'Brown Coordsets',
+        slug: 'brown-coordsets',
+        description: 'A stylish brown coordset that is comfortable and chic.',
+        shortDescription: 'Stylish brown coordset',
+        basePrice: 219900, // ₹2,199
         categoryId: separates.id,
-        images: ['/images/skylar.png'],
-        tags: ['silk', 'blouse', 'office'],
-        occasion: 'Work',
-        fabric: '100% Silk Crepe',
-        careInstructions: 'Hand wash cold, lay flat to dry',
+        images: ['/images/products/brown_coordsets.jpg'],
+        tags: ['brown', 'coordset', 'chic'],
+        occasion: 'Casual',
+        fabric: 'Cotton',
+        careInstructions: 'Machine wash cold',
         isFeatured: true,
         avgRating: 4.9,
         reviewCount: 31,
         variants: {
           create: [
-            { sku: 'SKB-OW-XS', size: 'XS', color: 'Off-White', colorHex: '#FAF9F6', stockQuantity: 10 },
-            { sku: 'SKB-OW-S', size: 'S', color: 'Off-White', colorHex: '#FAF9F6', stockQuantity: 15 },
-            { sku: 'SKB-OW-M', size: 'M', color: 'Off-White', colorHex: '#FAF9F6', stockQuantity: 12 },
-            { sku: 'SKB-OW-L', size: 'L', color: 'Off-White', colorHex: '#FAF9F6', stockQuantity: 8 },
+            { sku: 'BC-S', size: 'S', color: 'Brown', colorHex: '#964B00', stockQuantity: 8, price: 219900 },
+            { sku: 'BC-M', size: 'M', color: 'Brown', colorHex: '#964B00', stockQuantity: 10 },
+            { sku: 'BC-L', size: 'L', color: 'Brown', colorHex: '#964B00', stockQuantity: 5 },
           ],
         },
       },
     }),
     prisma.product.upsert({
-      where: { slug: 'valentina-wrap-dress' },
+      where: { slug: 'dupatta-beige-outfit' },
       update: {},
       create: {
-        name: 'Valentina Wrap Dress',
-        slug: 'valentina-wrap-dress',
-        description: 'A classic wrap dress in rich burgundy with a flattering V-neckline and tie waist.',
-        shortDescription: 'Classic wrap with tie waist',
-        basePrice: 1920000, // ₹19,200
-        categoryId: dresses.id,
-        images: ['/images/valentina.png'],
-        tags: ['wrap', 'burgundy', 'classic'],
-        occasion: 'Date Night',
-        fabric: 'Viscose Blend',
-        careInstructions: 'Machine wash gentle, hang dry',
+        name: 'Dupatta Beige Outfit',
+        slug: 'dupatta-beige-outfit',
+        description: 'A traditional beige outfit complete with a beautifully crafted dupatta.',
+        shortDescription: 'Traditional outfit with dupatta',
+        basePrice: 219900, // ₹2,199
+        categoryId: ethnic.id,
+        images: ['/images/products/dupatta_beige.jpg'],
+        tags: ['ethnic', 'beige', 'dupatta'],
+        occasion: 'Festive',
+        fabric: 'Silk Blend',
+        careInstructions: 'Dry clean only',
         isFeatured: true,
         avgRating: 4.3,
         reviewCount: 12,
         variants: {
           create: [
-            { sku: 'VWD-BG-S', size: 'S', color: 'Burgundy', colorHex: '#800020', stockQuantity: 9 },
-            { sku: 'VWD-BG-M', size: 'M', color: 'Burgundy', colorHex: '#800020', stockQuantity: 11 },
-            { sku: 'VWD-BG-L', size: 'L', color: 'Burgundy', colorHex: '#800020', stockQuantity: 6 },
+            { sku: 'DBO-S', size: 'S', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 5, price: 219900 },
+            { sku: 'DBO-M', size: 'M', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 8 },
+            { sku: 'DBO-L', size: 'L', color: 'Beige', colorHex: '#F5F5DC', stockQuantity: 4 },
+          ],
+        },
+      },
+    }),
+    prisma.product.upsert({
+      where: { slug: 'combo-outfit' },
+      update: {},
+      create: {
+        name: 'Combo Outfit',
+        slug: 'combo-outfit',
+        description: 'A perfect combo outfit for your daily wardrobe needs.',
+        shortDescription: 'Versatile combo outfit',
+        basePrice: 349900, // ₹3,499
+        categoryId: separates.id,
+        images: ['/images/products/combo.jpg'],
+        tags: ['combo', 'versatile', 'daily'],
+        occasion: 'Everyday',
+        fabric: 'Cotton Blend',
+        careInstructions: 'Machine wash',
+        isFeatured: true,
+        avgRating: 4.7,
+        reviewCount: 45,
+        variants: {
+          create: [
+            { sku: 'CO-S', size: 'S', color: 'Multicolor', colorHex: '#FFFFFF', stockQuantity: 15, price: 349900 },
+            { sku: 'CO-M', size: 'M', color: 'Multicolor', colorHex: '#FFFFFF', stockQuantity: 20 },
+            { sku: 'CO-L', size: 'L', color: 'Multicolor', colorHex: '#FFFFFF', stockQuantity: 10 },
           ],
         },
       },

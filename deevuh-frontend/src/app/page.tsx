@@ -4,17 +4,17 @@ import styles from './page.module.css';
 
 // Static data matching the seed — will be replaced by API calls when backend is live
 const featuredProducts = [
-  { slug: 'amelia-satin-dress', name: 'Amelia Satin Dress', category: 'Dresses', image: '/images/amelia.png', basePrice: 2450000, avgRating: 4.8, reviewCount: 24 },
-  { slug: 'cassian-wool-coat', name: 'Cassian Wool Coat', category: 'Coats', image: '/images/cassian.png', basePrice: 3480000, compareAtPrice: 3900000, avgRating: 4.5, reviewCount: 18 },
-  { slug: 'skylar-blouse', name: 'Skylar Blouse', category: 'Separates', image: '/images/skylar.png', basePrice: 1490000, avgRating: 4.9, reviewCount: 31 },
-  { slug: 'valentina-wrap-dress', name: 'Valentina Wrap Dress', category: 'Dresses', image: '/images/valentina.png', basePrice: 1920000, avgRating: 4.3, reviewCount: 12 },
+  { slug: 'baby-blue-coordset', name: 'Baby Blue Coordset', category: 'Separates', image: '/images/products/baby_blue.jpg', basePrice: 199900, avgRating: 4.8, reviewCount: 24 },
+  { slug: 'beige-outfit', name: 'Beige Outfit', category: 'Dresses', image: '/images/products/beige_outfit.jpg', basePrice: 269900, avgRating: 4.5, reviewCount: 18 },
+  { slug: 'brown-coordsets', name: 'Brown Coordsets', category: 'Separates', image: '/images/products/brown_coordsets.jpg', basePrice: 219900, avgRating: 4.9, reviewCount: 31 },
+  { slug: 'dupatta-beige-outfit', name: 'Dupatta Beige Outfit', category: 'Ethnic', image: '/images/products/dupatta_beige.jpg', basePrice: 219900, avgRating: 4.3, reviewCount: 12 },
 ];
 
 const categories = [
-  { name: 'Dresses', slug: 'dresses', image: '/images/amelia.png' },
-  { name: 'Coats', slug: 'coats', image: '/images/cassian.png' },
-  { name: 'Separates', slug: 'separates', image: '/images/skylar.png' },
-  { name: 'Ethnic', slug: 'ethnic', image: '/images/valentina.png' },
+  { name: 'Dresses', slug: 'dresses', image: '/images/products/beige_outfit.jpg' },
+  { name: 'Coats', slug: 'coats', image: '/images/swatch_coats.png' },
+  { name: 'Separates', slug: 'separates', image: '/images/products/baby_blue.jpg' },
+  { name: 'Ethnic', slug: 'ethnic', image: '/images/products/dupatta_beige.jpg' },
 ];
 
 export default function HomePage() {
@@ -75,7 +75,7 @@ export default function HomePage() {
       <section className={styles.editorial}>
         <div className={styles.editorialInner}>
           <div className={styles.editorialImage}>
-            <img src="/images/amelia.png" alt="Editorial" loading="lazy" />
+            <img src="/images/products/combo.jpg" alt="Editorial" loading="lazy" />
           </div>
           <div className={styles.editorialContent}>
             <h2>The Art of Everyday Elegance</h2>
