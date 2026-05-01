@@ -92,6 +92,60 @@ export async function login(input: LoginInput) {
   };
 }
 
+export async function googleLogin(googleData: { googleId: string; email: string; firstName: string; lastName: string; avatar?: string }) {
+  // Find user by googleId or email
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { googleId: googleData.googleId },
+        { email: googleData.email }
+      ]
+    }
+  });
+
+  if (user) {
+    // Update googleId if not set (first time logging in via Google for existing email user)
+    if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: googleData.googleId }
+      });
+    }
+  } else {
+    // Create new user
+    user = await prisma.user.create({
+      data: {
+        email: googleData.email,
+        googleId: googleData.googleId,
+        firstName: googleData.firstName,
+        lastName: googleData.lastName,
+        avatar: googleData.avatar,
+        isEmailVerified: true // Google emails are verified
+      }
+    });
+  }
+
+  // Generate tokens
+  const tokenPayload: AuthPayload = { userId: user.id, email: user.email, role: user.role };
+  const accessToken = generateAccessToken(tokenPayload);
+  const refreshToken = generateRefreshToken(tokenPayload);
+
+  // Store refresh token
+  await redis.set(RedisKeys.refreshToken(user.id), refreshToken, 'EX', RedisTTL.refreshToken);
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    },
+    accessToken,
+    refreshToken,
+  };
+}
+
 export async function refreshTokens(currentRefreshToken: string) {
   // Verify refresh token
   let payload: AuthPayload;

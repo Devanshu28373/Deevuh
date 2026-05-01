@@ -43,3 +43,17 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
     sendNoContent(res);
   } catch (err) { next(err); }
 }
+
+export async function googleLogin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { idToken } = req.body;
+    const googleUser = await require('./google.service').verifyGoogleToken(idToken);
+    
+    if (!googleUser) {
+      throw require('../../middleware/errorHandler').Errors.unauthorized('Invalid Google token');
+    }
+
+    const result = await authService.googleLogin(googleUser);
+    sendSuccess(res, result);
+  } catch (err) { next(err); }
+}
