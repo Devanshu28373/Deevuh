@@ -15,6 +15,7 @@ export interface Category {
 
 export interface ProductVariant {
   id: string;
+  sku?: string;
   size: string;
   color: string;
   colorHex: string | null;
@@ -84,6 +85,9 @@ export interface CartData {
 // ─── Orders ───
 
 export interface OrderItem {
+  id?: string;
+  productId?: string;
+  variantId?: string;
   productName: string;
   variantSize: string;
   variantColor: string;
@@ -91,31 +95,45 @@ export interface OrderItem {
   unitPrice: number;
   totalPrice: number;
   productImage: string | null;
+  returnStatus?: string;
 }
 
 export interface OrderAddress {
-  recipientName: string;
+  recipientName?: string;
+  fullName?: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
   state: string;
   pincode: string;
-  phone: string;
+  phone?: string;
 }
 
 export interface Order {
   id: string;
   orderNumber: string;
   status: string;
+  paymentStatus?: string;
   total: number;
   subtotal: number;
   shippingAmount: number;
   taxAmount: number;
   discountAmount: number;
   paymentMethod: string;
+  razorpayPaymentId?: string;
+  loyaltyPointsRedeemed?: number;
+  loyaltyPointsEarned?: number;
+  cancelReason?: string;
+  notes?: string;
+  trackingNumber?: string;
+  estimatedDelivery?: string;
   createdAt: string;
+  cancelledAt?: string;
+  deliveredAt?: string;
   items: OrderItem[];
   address: OrderAddress | null;
+  user?: { id?: string; firstName: string; lastName: string; email: string; phone?: string };
+  promoCode?: { code: string; type: string; discountValue: number } | null;
 }
 
 export interface OrderSummary {
@@ -149,7 +167,8 @@ export interface AuthTokens {
 export interface Address {
   id: string;
   label: string;
-  recipientName: string;
+  fullName?: string;
+  recipientName?: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
@@ -198,22 +217,41 @@ export interface AdminOrder {
   id: string;
   orderNumber: string;
   status: string;
-  total: number;
+  paymentStatus?: string;
   paymentMethod: string;
+  total: number;
+  subtotal?: number;
+  discountAmount?: number;
+  shippingAmount?: number;
+  taxAmount?: number;
+  razorpayPaymentId?: string;
+  loyaltyPointsRedeemed?: number;
+  trackingNumber?: string;
+  cancelReason?: string;
+  notes?: string;
   createdAt: string;
-  user?: { firstName: string; lastName: string; email: string };
-  items?: { length: number }[];
+  cancelledAt?: string;
+  user?: { id?: string; firstName: string; lastName: string; email: string; phone?: string };
+  items?: OrderItem[];
+  address?: OrderAddress | null;
+  promoCode?: { code: string; type: string; discountValue: number } | null;
 }
 
 export interface AdminProduct {
   id: string;
   name: string;
   slug: string;
+  description?: string;
+  shortDescription?: string;
   basePrice: number;
+  compareAtPrice?: number;
   images: string[];
   isActive: boolean;
+  isFeatured?: boolean;
+  avgRating?: number;
+  reviewCount?: number;
   category: { name: string } | null;
-  variants: { stockQuantity: number }[];
+  variants: ProductVariant[];
 }
 
 export interface AdminCustomer {
@@ -221,22 +259,40 @@ export interface AdminCustomer {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   loyaltyPoints: number;
   loyaltyTier: string;
   createdAt: string;
-  _count?: { orders: number };
+  _count?: { orders: number; reviews?: number };
+  addresses?: Address[];
+  orders?: OrderSummary[];
 }
 
 export interface PromoCode {
   id: string;
   code: string;
+  description?: string;
   type: string;
-  value: number;
+  discountValue: number;
+  maxDiscountAmount?: number | null;
   minOrderAmount: number | null;
-  maxUsageTotal: number | null;
+  usageLimit: number | null;
+  perUserLimit?: number;
+  usageCount: number;
   isActive: boolean;
+  startsAt?: string;
   expiresAt: string | null;
-  _count?: { usages: number };
+  createdAt?: string;
+  _count?: { promoUsages: number };
+}
+
+export interface AdminAnalytics {
+  period: { days: number; since: string };
+  revenueByDay: { date: string; revenue: number; orders: number }[];
+  ordersByStatus: { status: string; count: number }[];
+  topProducts: { name: string; id: string; unitsSold: number; revenue: number }[];
+  newCustomers: number;
+  lowStockVariants: (ProductVariant & { product: { name: string; slug: string; images: string[] } })[];
 }
 
 // ─── Payments ───
@@ -261,4 +317,20 @@ export interface RazorpayVerifyPayload {
 export interface PromoValidationResult {
   message: string;
   discountAmount: number;
+}
+
+// ─── Pagination ───
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta?: { pagination: PaginationMeta };
 }
