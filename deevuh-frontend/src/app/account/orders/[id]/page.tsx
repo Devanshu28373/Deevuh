@@ -4,20 +4,18 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
-
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
+import { formatPrice } from '@/lib/utils';
+import type { Order } from '@/lib/types';
 
 export default function OrderDetailPage() {
   const params = useParams();
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (params.id) {
-      api.get(`/orders/${params.id}`)
-        .then(res => setOrder(res.data))
+      api.get<Order>(`/orders/${params.id}`)
+        .then(res => setOrder(res.data ?? null))
         .catch(console.error)
         .finally(() => setLoading(false));
     }
@@ -73,16 +71,16 @@ export default function OrderDetailPage() {
       {/* Items */}
       <div style={{ background: 'var(--gray-100)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
         <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 18, marginBottom: 16 }}>Items</h3>
-        {order.items?.map((item: any, i: number) => (
+        {(order.items ?? []).map((item, i) => (
           <div key={i} style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center' }}>
             <div style={{ width: 60, height: 78, borderRadius: 8, overflow: 'hidden', background: 'var(--gray-200)', flexShrink: 0 }}>
               {item.productImage && <img src={item.productImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: 500 }}>{item.productName}</p>
-              <p style={{ fontSize: 13, color: 'var(--gray-400)' }}>{item.variantSize} · {item.variantColor} · Qty: {item.quantity}</p>
+              <p style={{ fontWeight: 500 }}>{item.productName ?? 'Product'}</p>
+              <p style={{ fontSize: 13, color: 'var(--gray-400)' }}>{item.variantSize ?? '—'} · {item.variantColor ?? '—'} · Qty: {item.quantity}</p>
             </div>
-            <p style={{ fontWeight: 600 }}>{formatPrice(item.totalPrice)}</p>
+            <p style={{ fontWeight: 600 }}>{formatPrice(item.totalPrice ?? 0)}</p>
           </div>
         ))}
       </div>
@@ -92,11 +90,11 @@ export default function OrderDetailPage() {
         <div style={{ background: 'var(--gray-100)', borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 16, marginBottom: 16 }}>Price Breakdown</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, color: 'var(--gray-500)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div>
-            {order.discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Discount</span><span>-{formatPrice(order.discountAmount)}</span></div>}
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Shipping</span><span>{order.shippingAmount === 0 ? 'FREE' : formatPrice(order.shippingAmount)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>GST</span><span>{formatPrice(order.taxAmount)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16, marginTop: 8, borderTop: '1px solid var(--gray-200)', paddingTop: 12 }}><span>Total</span><span>{formatPrice(order.total)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>{formatPrice(order.subtotal ?? 0)}</span></div>
+            {(order.discountAmount ?? 0) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)' }}><span>Discount</span><span>-{formatPrice(order.discountAmount)}</span></div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Shipping</span><span>{order.shippingAmount === 0 ? 'FREE' : formatPrice(order.shippingAmount ?? 0)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>GST</span><span>{formatPrice(order.taxAmount ?? 0)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16, marginTop: 8, borderTop: '1px solid var(--gray-200)', paddingTop: 12 }}><span>Total</span><span>{formatPrice(order.total ?? 0)}</span></div>
           </div>
         </div>
 
@@ -107,7 +105,7 @@ export default function OrderDetailPage() {
               {order.address.recipientName}<br />
               {order.address.addressLine1}<br />
               {order.address.city}, {order.address.state} — {order.address.pincode}<br />
-              Phone: {order.address.phone}
+              Phone: {order.address.phone ?? '—'}
             </p>
           </div>
         )}

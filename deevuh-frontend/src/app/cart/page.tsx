@@ -5,27 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatPrice } from '@/lib/utils';
+import type { CartData, PromoValidationResult } from '@/lib/types';
 import styles from './cart.module.css';
-
-interface CartItem {
-  id: string;
-  quantity: number;
-  product: { id: string; name: string; slug: string; images: string[]; basePrice: number };
-  variant: { id: string; size: string; color: string; price: number | null; stockQuantity: number };
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface CartData {
-  id?: string;
-  items: CartItem[];
-  subtotal: number;
-  itemCount?: number;
-}
-
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
 
 const FREE_SHIPPING_THRESHOLD = 99900; // ₹999
 
@@ -34,17 +16,20 @@ export default function CartPage() {
   const { isAuthenticated } = useAuth();
   const [cart, setCart] = useState<CartData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [promoCode, setPromoCode] = useState('');
-  const [promoResult, setPromoResult] = useState<{ message: string; discountAmount: number } | null>(null);
+  const [promoResult, setPromoResult] = useState<PromoValidationResult | null>(null);
   const [promoError, setPromoError] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchCart = useCallback(async () => {
+    setError('');
     try {
       const res = await api.get<CartData>('/cart');
-      setCart(res.data);
+      setCart(res.data ?? null);
     } catch (err) {
       console.error('Failed to fetch cart:', err);
+      setError('Failed to load your cart. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -58,7 +43,7 @@ export default function CartPage() {
       await api.put(`/cart/items/${itemId}`, { quantity });
       await fetchCart();
     } catch (err: any) {
-      alert(err.message || 'Failed to update');
+      alert(err?.message || 'Failed to update');
     } finally {
       setUpdatingId(null);
     }
@@ -70,7 +55,7 @@ export default function CartPage() {
       await api.delete(`/cart/items/${itemId}`);
       await fetchCart();
     } catch (err: any) {
-      alert(err.message || 'Failed to remove');
+      alert(err?.message || 'Failed to remove');
     } finally {
       setUpdatingId(null);
     }
@@ -81,13 +66,13 @@ export default function CartPage() {
     setPromoError('');
     setPromoResult(null);
     try {
-      const res = await api.post<{ message: string; discountAmount: number }>('/promos/validate', {
+      const res = await api.post<PromoValidationResult>('/promos/validate', {
         code: promoCode,
         cartSubtotal: cart?.subtotal || 0,
       });
-      setPromoResult(res.data);
+      setPromoResult(res.data ?? null);
     } catch (err: any) {
-      setPromoError(err.message || 'Invalid promo code');
+      setPromoError(err?.message || 'Invalid promo code');
     }
   }
 
@@ -95,7 +80,18 @@ export default function CartPage() {
     return <div className={styles.cartPage} style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading cart...</div>;
   }
 
-  if (!cart || cart.items.length === 0) {
+  if (error) {
+    return (
+      <div className={styles.cartPage} style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <p style={{ color: 'var(--error)' }}>{error}</p>
+        <button onClick={() => { setLoading(true); fetchCart(); }} style={{ padding: '12px 32px', background: 'var(--ruby)', color: 'var(--white)', borderRadius: 8, fontWeight: 600 }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!cart || !cart.items || cart.items.length === 0) {
     return (
       <div className={styles.cartPage}>
         <div className={styles.emptyCart}>
@@ -107,7 +103,7 @@ export default function CartPage() {
     );
   }
 
-  const subtotal = cart.subtotal;
+  const subtotal = cart.subtotal ?? 0;
   const discount = promoResult?.discountAmount || 0;
   const afterDiscount = Math.max(0, subtotal - discount);
   const shipping = afterDiscount >= FREE_SHIPPING_THRESHOLD ? 0 : 9900;
@@ -125,14 +121,14 @@ export default function CartPage() {
         <div>
           {cart.items.map(item => (
             <div key={item.id} className={styles.cartItem} style={{ opacity: updatingId === item.id ? 0.5 : 1 }}>
-              <Link href={`/shop/${item.product.slug}`} className={styles.itemImage}>
-                <img src={item.product.images[0] || '/images/placeholder.png'} alt={item.product.name} />
+              <Link href={`/shop/${item.product?.slug ?? ''}`} className={styles.itemImage}>
+                <img src={item.product?.images?.[0] || '/images/placeholder.png'} alt={item.product?.name ?? 'Product'} />
               </Link>
 
               <div className={styles.itemDetails}>
-                <h3>{item.product.name}</h3>
+                <h3>{item.product?.name ?? 'Product'}</h3>
                 <p className={styles.itemMeta}>
-                  Size: {item.variant.size} &middot; Color: {item.variant.color}
+                  Size: {item.variant?.size ?? '—'} &middot; Color: {item.variant?.color ?? '—'}
                 </p>
 
                 <div className={styles.quantityControl}>
@@ -145,7 +141,7 @@ export default function CartPage() {
                   <button
                     className={styles.qtyBtn}
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    disabled={item.quantity >= item.variant.stockQuantity || updatingId === item.id}
+                    disabled={item.quantity >= (item.variant?.stockQuantity ?? 0) || updatingId === item.id}
                   >+</button>
                 </div>
 

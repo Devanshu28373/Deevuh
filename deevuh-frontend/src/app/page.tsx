@@ -1,23 +1,35 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard/ProductCard';
+import api from '@/lib/api';
+import type { ProductSummary, Category } from '@/lib/types';
 import styles from './page.module.css';
 
-// Static data matching the seed — will be replaced by API calls when backend is live
-const featuredProducts = [
-  { slug: 'baby-blue-coordset', name: 'Baby Blue Coordset', category: 'Separates', image: '/images/products/baby_blue.jpg', basePrice: 199900, avgRating: 4.8, reviewCount: 24 },
-  { slug: 'beige-outfit', name: 'Beige Outfit', category: 'Dresses', image: '/images/products/beige_outfit.jpg', basePrice: 269900, avgRating: 4.5, reviewCount: 18 },
-  { slug: 'brown-coordsets', name: 'Brown Coordsets', category: 'Separates', image: '/images/products/brown_coordsets.jpg', basePrice: 219900, avgRating: 4.9, reviewCount: 31 },
-  { slug: 'dupatta-beige-outfit', name: 'Dupatta Beige Outfit', category: 'Ethnic', image: '/images/products/dupatta_beige.jpg', basePrice: 219900, avgRating: 4.3, reviewCount: 12 },
-];
-
-const categories = [
-  { name: 'Dresses', slug: 'dresses', image: '/images/products/beige_outfit.jpg' },
-  { name: 'Coats', slug: 'coats', image: '/images/swatch_coats.png' },
-  { name: 'Separates', slug: 'separates', image: '/images/products/baby_blue.jpg' },
-  { name: 'Ethnic', slug: 'ethnic', image: '/images/products/dupatta_beige.jpg' },
-];
-
 export default function HomePage() {
+  const [featuredProducts, setFeaturedProducts] = useState<ProductSummary[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadHomeData() {
+      try {
+        const [productsRes, categoriesRes] = await Promise.all([
+          api.get<ProductSummary[]>('/products?limit=4&sort=rating'),
+          api.get<Category[]>('/categories'),
+        ]);
+        setFeaturedProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+        setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
+      } catch (err) {
+        console.error('Failed to load homepage data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadHomeData();
+  }, []);
+
   return (
     <>
       {/* ─── Hero ─── */}
@@ -48,14 +60,20 @@ export default function HomePage() {
         <h2 className={styles.sectionTitle}>Shop by Category</h2>
         <p className={styles.sectionSubtitle}>Explore our curated collections for every occasion</p>
         <div className={styles.categoryGrid}>
-          {categories.map((cat) => (
-            <Link key={cat.slug} href={`/shop?category=${cat.slug}`} className={styles.categoryCard}>
-              <img src={cat.image} alt={cat.name} loading="lazy" />
-              <div className={styles.categoryOverlay}>
-                <h3>{cat.name}</h3>
-              </div>
-            </Link>
-          ))}
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={styles.categoryCard} style={{ background: 'var(--gray-100)' }} />
+            ))
+          ) : categories.length > 0 ? (
+            categories.slice(0, 4).map((cat) => (
+              <Link key={cat.slug} href={`/shop?category=${cat.slug}`} className={styles.categoryCard}>
+                <img src={cat.image || '/images/placeholder.png'} alt={cat.name} loading="lazy" />
+                <div className={styles.categoryOverlay}>
+                  <h3>{cat.name}</h3>
+                </div>
+              </Link>
+            ))
+          ) : null}
         </div>
       </section>
 
@@ -64,9 +82,29 @@ export default function HomePage() {
         <h2 className={styles.sectionTitle}>Curated For You</h2>
         <p className={styles.sectionSubtitle}>Handpicked pieces from our latest collection</p>
         <div className={styles.productGrid}>
-          {featuredProducts.map((product) => (
-            <ProductCard key={product.slug} {...product} />
-          ))}
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ aspectRatio: '3/4', background: 'var(--gray-100)', borderRadius: 'var(--radius-lg)' }} />
+            ))
+          ) : featuredProducts.length > 0 ? (
+            featuredProducts.map((product) => (
+              <ProductCard
+                key={product.slug}
+                slug={product.slug}
+                name={product.name}
+                category={product.category?.name}
+                image={product.images?.[0] || '/images/placeholder.png'}
+                basePrice={product.basePrice}
+                compareAtPrice={product.compareAtPrice}
+                avgRating={product.avgRating}
+                reviewCount={product.reviewCount}
+              />
+            ))
+          ) : (
+            <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--gray-400)', padding: '40px 0' }}>
+              No products available yet.
+            </p>
+          )}
         </div>
         <Link href="/shop" className={styles.shopAllBtn}>Shop All →</Link>
       </section>

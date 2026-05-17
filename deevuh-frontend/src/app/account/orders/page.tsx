@@ -3,18 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
+import type { OrderSummary } from '@/lib/types';
 import styles from '../account.module.css';
 
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
-
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<any[]>('/orders')
+    api.get<OrderSummary[]>('/orders')
       .then(res => setOrders(Array.isArray(res.data) ? res.data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -45,19 +43,19 @@ export default function OrdersPage() {
         </div>
       ) : (
         <div className={styles.orderList}>
-          {orders.map((order: any) => (
+          {orders.map((order) => (
             <Link key={order.id} href={`/account/orders/${order.id}`} className={styles.orderCard}>
               <div className={styles.orderHeader}>
                 <h4>{order.orderNumber}</h4>
                 <span className={`${styles.orderStatus} ${statusClass(order.status)}`}>{order.status}</span>
               </div>
               <div className={styles.orderItems}>
-                {order.items?.slice(0, 6).map((item: any, i: number) => (
+                {order.items?.slice(0, 6).map((item, i) => (
                   <div key={i} className={styles.orderThumb}>
                     {item.productImage && <img src={item.productImage} alt="" />}
                   </div>
                 ))}
-                {order.items?.length > 6 && <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--gray-400)' }}>+{order.items.length - 6} more</span>}
+                {(order.items?.length ?? 0) > 6 && <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--gray-400)' }}>+{order.items.length - 6} more</span>}
               </div>
               <div className={styles.orderFooter}>
                 <span>{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>

@@ -4,18 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProductCard from '@/components/ProductCard/ProductCard';
 import api from '@/lib/api';
+import type { ProductSummary } from '@/lib/types';
 import styles from './shop.module.css';
-
-interface Product {
-  slug: string;
-  name: string;
-  basePrice: number;
-  compareAtPrice: number | null;
-  images: string[];
-  avgRating: number;
-  reviewCount: number;
-  category: { name: string; slug: string };
-}
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest First' },
@@ -39,9 +29,10 @@ export default function ShopPage() {
 
 function ShopContent() {
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [sort, setSort] = useState(searchParams.get('sort') || 'newest');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
   const [selectedSize, setSelectedSize] = useState('');
@@ -53,6 +44,7 @@ function ShopContent() {
 
   async function fetchProducts() {
     setLoading(true);
+    setError('');
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
@@ -61,15 +53,17 @@ function ShopContent() {
       if (selectedCategory) params.set('category', selectedCategory);
       if (selectedSize) params.set('size', selectedSize);
 
-      const res = await api.get<Product[]>(`/products?${params.toString()}`);
+      const res = await api.get<ProductSummary[]>(`/products?${params.toString()}`);
+      const data = Array.isArray(res.data) ? res.data : [];
       if (page === 1) {
-        setProducts(res.data);
+        setProducts(data);
       } else {
-        setProducts(prev => [...prev, ...res.data]);
+        setProducts(prev => [...prev, ...data]);
       }
       setTotal(res.meta?.pagination?.total || 0);
     } catch (err) {
       console.error('Failed to fetch products:', err);
+      setError('Failed to load products. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -125,7 +119,7 @@ function ShopContent() {
         <div>
           <div className={styles.toolbar}>
             <span className={styles.resultCount}>
-              {loading ? 'Loading...' : `${total} products`}
+              {loading && page === 1 ? 'Loading...' : `${total} products`}
             </span>
             <select
               className={styles.sortSelect}
@@ -138,6 +132,15 @@ function ShopContent() {
             </select>
           </div>
 
+          {error && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--error)' }}>
+              <p>{error}</p>
+              <button onClick={() => fetchProducts()} style={{ marginTop: 12, padding: '8px 24px', background: 'var(--ruby)', color: 'var(--white)', borderRadius: 8, fontWeight: 600 }}>
+                Retry
+              </button>
+            </div>
+          )}
+
           <div className={styles.productGrid}>
             {products.map(product => (
               <ProductCard
@@ -145,7 +148,7 @@ function ShopContent() {
                 slug={product.slug}
                 name={product.name}
                 category={product.category?.name}
-                image={product.images[0] || '/images/placeholder.png'}
+                image={product.images?.[0] || '/images/placeholder.png'}
                 basePrice={product.basePrice}
                 compareAtPrice={product.compareAtPrice}
                 avgRating={product.avgRating}
@@ -153,7 +156,7 @@ function ShopContent() {
               />
             ))}
 
-            {!loading && products.length === 0 && (
+            {!loading && !error && products.length === 0 && (
               <div className={styles.emptyState}>
                 <h3>No products found</h3>
                 <p>Try adjusting your filters or browse all products.</p>

@@ -4,38 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatPrice } from '@/lib/utils';
+import type { Address, CartData, CreateOrderResponse } from '@/lib/types';
 import styles from './checkout.module.css';
-
-interface Address {
-  id: string;
-  label: string;
-  recipientName: string;
-  addressLine1: string;
-  addressLine2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  phone: string;
-  isDefault: boolean;
-}
-
-interface CartItem {
-  id: string;
-  quantity: number;
-  product: { name: string; images: string[] };
-  variant: { size: string; color: string; price: number | null };
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface CartData {
-  items: CartItem[];
-  subtotal: number;
-}
-
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
 
 const STEPS = ['Address', 'Shipping', 'Payment'];
 
@@ -75,11 +46,12 @@ export default function CheckoutPage() {
         api.get<CartData>('/cart'),
         api.get<Address[]>('/users/me/addresses'),
       ]);
-      setCart(cartRes.data);
-      setAddresses(addrRes.data);
-      const defaultAddr = addrRes.data.find(a => a.isDefault);
+      setCart(cartRes.data ?? null);
+      const addrs = Array.isArray(addrRes.data) ? addrRes.data : [];
+      setAddresses(addrs);
+      const defaultAddr = addrs.find(a => a.isDefault);
       if (defaultAddr) setSelectedAddressId(defaultAddr.id);
-      else if (addrRes.data.length > 0) setSelectedAddressId(addrRes.data[0].id);
+      else if (addrs.length > 0) setSelectedAddressId(addrs[0].id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -90,11 +62,13 @@ export default function CheckoutPage() {
   async function handleSaveAddress() {
     try {
       const res = await api.post<Address>('/users/me/addresses', newAddress);
-      setAddresses(prev => [...prev, res.data]);
-      setSelectedAddressId(res.data.id);
+      if (res.data) {
+        setAddresses(prev => [...prev, res.data]);
+        setSelectedAddressId(res.data.id);
+      }
       setShowNewAddress(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to save address');
+      alert(err?.message || 'Failed to save address');
     }
   }
 
@@ -103,19 +77,24 @@ export default function CheckoutPage() {
     setPlacing(true);
 
     try {
-      const res = await api.post<{ order: { id: string; orderNumber: string }; razorpay: { razorpayOrderId: string; razorpayKeyId: string; amount: number } | null }>(
+      const res = await api.post<CreateOrderResponse>(
         '/orders',
         { addressId: selectedAddressId, paymentMethod }
       );
 
+      const orderData = res.data;
+      if (!orderData?.order) {
+        throw new Error('Invalid order response');
+      }
+
       if (paymentMethod === 'COD') {
-        router.push(`/order-confirmation/${res.data.order.id}`);
+        router.push(`/order-confirmation/${orderData.order.id}`);
         return;
       }
 
       // Razorpay checkout
-      if (res.data.razorpay) {
-        const rzp = res.data.razorpay;
+      if (orderData.razorpay) {
+        const rzp = orderData.razorpay;
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.onload = () => {
@@ -124,13 +103,13 @@ export default function CheckoutPage() {
             amount: rzp.amount,
             currency: 'INR',
             name: 'Deevuh',
-            description: `Order ${res.data.order.orderNumber}`,
+            description: `Order ${orderData.order.orderNumber}`,
             order_id: rzp.razorpayOrderId,
             handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
               try {
                 await api.post('/payments/verify', response);
-                router.push(`/order-confirmation/${res.data.order.id}`);
-              } catch (err: any) {
+                router.push(`/order-confirmation/${orderData.order.id}`);
+              } catch {
                 alert('Payment verification failed. Please contact support.');
               }
             },
@@ -143,7 +122,7 @@ export default function CheckoutPage() {
         document.body.appendChild(script);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to place order');
+      alert(err?.message || 'Failed to place order');
     } finally {
       setPlacing(false);
     }
@@ -153,12 +132,12 @@ export default function CheckoutPage() {
     return <div className={styles.checkoutPage} style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
   }
 
-  if (!cart || cart.items.length === 0) {
+  if (!cart || !cart.items || cart.items.length === 0) {
     router.push('/cart');
     return null;
   }
 
-  const subtotal = cart.subtotal;
+  const subtotal = cart.subtotal ?? 0;
   const shipping = subtotal >= 99900 ? 0 : 9900;
   const tax = Math.round(subtotal * 0.18);
   const total = subtotal + shipping + tax;
@@ -288,10 +267,10 @@ export default function CheckoutPage() {
           <h3>Your Order</h3>
           {cart.items.map(item => (
             <div key={item.id} className={styles.summaryItem}>
-              <img src={item.product.images[0] || '/images/placeholder.png'} alt="" />
+              <img src={item.product?.images?.[0] || '/images/placeholder.png'} alt="" />
               <div className={styles.summaryItemInfo}>
-                <p>{item.product.name}</p>
-                <p>{item.variant.size} · {item.variant.color} · Qty: {item.quantity}</p>
+                <p>{item.product?.name ?? 'Product'}</p>
+                <p>{item.variant?.size ?? '—'} · {item.variant?.color ?? '—'} · Qty: {item.quantity}</p>
               </div>
               <span className={styles.summaryItemPrice}>{formatPrice(item.totalPrice)}</span>
             </div>

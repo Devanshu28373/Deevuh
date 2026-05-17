@@ -5,44 +5,16 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatPrice } from '@/lib/utils';
+import type { ProductDetail } from '@/lib/types';
 import styles from './pdp.module.css';
-
-interface Variant {
-  id: string;
-  size: string;
-  color: string;
-  colorHex: string | null;
-  price: number | null;
-  stockQuantity: number;
-}
-
-interface ProductDetail {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  shortDescription: string;
-  basePrice: number;
-  compareAtPrice: number | null;
-  images: string[];
-  category: { name: string; slug: string };
-  variants: Variant[];
-  avgRating: number;
-  reviewCount: number;
-  occasion: string | null;
-  fabric: string | null;
-  careInstructions: string | null;
-}
-
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
 
 export default function ProductDetailPage() {
   const params = useParams();
   const { isAuthenticated } = useAuth();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedImage, setSelectedImage] = useState(0);
@@ -57,17 +29,24 @@ export default function ProductDetailPage() {
   }, [params.slug]);
 
   async function fetchProduct(slug: string) {
+    setError('');
     try {
       const res = await api.get<ProductDetail>(`/products/${slug}`);
-      setProduct(res.data);
+      const data = res.data;
+      if (!data) {
+        setError('Product not found');
+        return;
+      }
+      setProduct(data);
       // Auto-select first available variant
-      const availableVariants = res.data.variants.filter(v => v.stockQuantity > 0);
+      const availableVariants = (data.variants ?? []).filter(v => v.stockQuantity > 0);
       if (availableVariants.length > 0) {
         setSelectedSize(availableVariants[0].size);
         setSelectedColor(availableVariants[0].color);
       }
     } catch (err) {
       console.error('Failed to fetch product:', err);
+      setError('Failed to load product. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -77,38 +56,47 @@ export default function ProductDetailPage() {
     return <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
   }
 
-  if (!product) {
-    return <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Product not found</div>;
+  if (error || !product) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <p>{error || 'Product not found'}</p>
+        <Link href="/shop" style={{ padding: '12px 32px', background: 'var(--ruby)', color: 'var(--white)', borderRadius: 8, fontWeight: 600 }}>
+          Browse Collection
+        </Link>
+      </div>
+    );
   }
 
-  const sizes = [...new Set(product.variants.map(v => v.size))];
-  const colors = [...new Set(product.variants.map(v => v.color))];
-  const selectedVariant = product.variants.find(v => v.size === selectedSize && v.color === selectedColor);
+  const variants = product.variants ?? [];
+  const images = product.images ?? [];
+  const sizes = [...new Set(variants.map(v => v.size))];
+  const colors = [...new Set(variants.map(v => v.color))];
+  const selectedVariant = variants.find(v => v.size === selectedSize && v.color === selectedColor);
   const displayPrice = selectedVariant?.price || product.basePrice;
   const discount = product.compareAtPrice
     ? Math.round(((product.compareAtPrice - displayPrice) / product.compareAtPrice) * 100)
     : 0;
 
   async function handleAddToCart() {
-    if (!selectedVariant) return;
+    if (!selectedVariant || !product) return;
     setAddingToCart(true);
     try {
       await api.post('/cart/items', {
-        productId: product!.id,
+        productId: product.id,
         variantId: selectedVariant.id,
         quantity: 1,
       });
       setAddedMessage('Added to bag!');
       setTimeout(() => setAddedMessage(''), 3000);
     } catch (err: any) {
-      setAddedMessage(err.message || 'Failed to add');
+      setAddedMessage(err?.message || 'Failed to add');
     } finally {
       setAddingToCart(false);
     }
   }
 
   const getStockForSize = (size: string) => {
-    return product.variants
+    return variants
       .filter(v => v.size === size && (selectedColor ? v.color === selectedColor : true))
       .reduce((sum, v) => sum + v.stockQuantity, 0);
   };
@@ -118,11 +106,11 @@ export default function ProductDetailPage() {
       {/* Gallery */}
       <div className={styles.gallery}>
         <div className={styles.mainImage}>
-          <img src={product.images[selectedImage] || '/images/placeholder.png'} alt={product.name} />
+          <img src={images[selectedImage] || '/images/placeholder.png'} alt={product.name} />
         </div>
-        {product.images.length > 1 && (
+        {images.length > 1 && (
           <div className={styles.thumbnails}>
-            {product.images.map((img, i) => (
+            {images.map((img, i) => (
               <div
                 key={i}
                 className={`${styles.thumb} ${i === selectedImage ? styles.active : ''}`}
@@ -138,7 +126,7 @@ export default function ProductDetailPage() {
       {/* Details */}
       <div className={styles.details}>
         <p className={styles.breadcrumb}>
-          <Link href="/">Home</Link> / <Link href="/shop">Shop</Link> / <Link href={`/shop?category=${product.category.slug}`}>{product.category.name}</Link> / {product.name}
+          <Link href="/">Home</Link> / <Link href="/shop">Shop</Link> / <Link href={`/shop?category=${product.category?.slug ?? ''}`}>{product.category?.name ?? 'Category'}</Link> / {product.name}
         </p>
 
         <h1 className={styles.productName}>{product.name}</h1>
@@ -146,7 +134,7 @@ export default function ProductDetailPage() {
         {product.avgRating > 0 && (
           <div className={styles.ratingRow}>
             <span className={styles.stars}>{'★'.repeat(Math.round(product.avgRating))}</span>
-            <span>{product.avgRating.toFixed(1)} ({product.reviewCount} reviews)</span>
+            <span>{product.avgRating.toFixed(1)} ({product.reviewCount ?? 0} reviews)</span>
           </div>
         )}
 
@@ -201,7 +189,7 @@ export default function ProductDetailPage() {
             <p className={styles.selectorLabel}>Color: {selectedColor}</p>
             <div className={styles.colorOptions}>
               {colors.map(color => {
-                const variant = product.variants.find(v => v.color === color);
+                const variant = variants.find(v => v.color === color);
                 return (
                   <button
                     key={color}

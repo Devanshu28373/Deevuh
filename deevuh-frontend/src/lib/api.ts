@@ -1,6 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { env } from './env';
 
-interface ApiResponse<T> {
+const API_URL = env.NEXT_PUBLIC_API_URL;
+
+export interface ApiResponse<T> {
   success: boolean;
   data: T;
   meta?: {
@@ -41,6 +43,7 @@ class ApiClient {
   }
 
   private async refreshToken(): Promise<boolean> {
+    if (typeof window === 'undefined') return false;
     const refreshToken = localStorage.getItem('refreshToken');
     if (!refreshToken) return false;
 
@@ -54,6 +57,7 @@ class ApiClient {
       if (!res.ok) return false;
 
       const data = await res.json() as ApiResponse<{ accessToken: string; refreshToken: string }>;
+      if (!data?.data?.accessToken) return false;
       this.setToken(data.data.accessToken);
       localStorage.setItem('refreshToken', data.data.refreshToken);
       return true;
@@ -98,8 +102,8 @@ class ApiClient {
 
     if (!res.ok) {
       throw new ApiError(
-        json.error?.message || 'Something went wrong',
-        json.error?.code || 'UNKNOWN',
+        json?.error?.message || 'Something went wrong',
+        json?.error?.code || 'UNKNOWN',
         res.status
       );
     }
@@ -144,4 +148,3 @@ export class ApiError extends Error {
 
 const api = new ApiClient();
 export default api;
-export type { ApiResponse };

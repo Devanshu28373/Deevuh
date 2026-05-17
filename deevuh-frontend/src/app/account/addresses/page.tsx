@@ -2,20 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import type { Address } from '@/lib/types';
 import styles from '../account.module.css';
-
-interface Address {
-  id: string;
-  label: string;
-  recipientName: string;
-  addressLine1: string;
-  addressLine2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  phone: string;
-  isDefault: boolean;
-}
 
 export default function AddressesPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -23,7 +11,7 @@ export default function AddressesPage() {
 
   useEffect(() => {
     api.get<Address[]>('/users/me/addresses')
-      .then(res => setAddresses(res.data))
+      .then(res => setAddresses(Array.isArray(res.data) ? res.data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -34,7 +22,7 @@ export default function AddressesPage() {
       await api.delete(`/users/me/addresses/${id}`);
       setAddresses(prev => prev.filter(a => a.id !== id));
     } catch (err: any) {
-      alert(err.message);
+      alert(err?.message || 'Failed to delete address');
     }
   }
 

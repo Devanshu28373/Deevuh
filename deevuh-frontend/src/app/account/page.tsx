@@ -4,31 +4,30 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatPrice } from '@/lib/utils';
+import type { OrderSummary, LoyaltyInfo } from '@/lib/types';
 import styles from './account.module.css';
-
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
 
 export default function AccountDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState({ orderCount: 0, wishlistCount: 0, loyaltyPoints: 0, loyaltyTier: 'BRONZE' });
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      api.get<any[]>('/orders?limit=3').catch(() => ({ data: [] })),
-      api.get<any>('/loyalty').catch(() => ({ data: { points: 0, tier: 'BRONZE' } })),
+      api.get<OrderSummary[]>('/orders?limit=3').catch(() => ({ data: [] as OrderSummary[] })),
+      api.get<LoyaltyInfo>('/loyalty').catch(() => ({ data: { points: 0, tier: 'BRONZE' } })),
     ]).then(([ordersRes, loyaltyRes]) => {
       const orders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
       setRecentOrders(orders);
       setStats({
         orderCount: orders.length,
         wishlistCount: 0,
-        loyaltyPoints: loyaltyRes.data?.points || 0,
-        loyaltyTier: loyaltyRes.data?.tier || 'BRONZE',
+        loyaltyPoints: loyaltyRes.data?.points ?? 0,
+        loyaltyTier: loyaltyRes.data?.tier ?? 'BRONZE',
       });
-    });
+    }).finally(() => setLoading(false));
   }, []);
 
   const statusClass = (status: string) => {
@@ -40,6 +39,10 @@ export default function AccountDashboard() {
       default: return '';
     }
   };
+
+  if (loading) {
+    return <div style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading dashboard...</div>;
+  }
 
   return (
     <div>
@@ -57,7 +60,7 @@ export default function AccountDashboard() {
         </div>
         <div className={styles.dashCard}>
           <h4>Member Since</h4>
-          <p className={styles.value} style={{ fontSize: 20 }}>{user?.email}</p>
+          <p className={styles.value} style={{ fontSize: 20 }}>{user?.email ?? '—'}</p>
         </div>
       </div>
 
@@ -66,14 +69,14 @@ export default function AccountDashboard() {
         <p style={{ color: 'var(--gray-400)' }}>No orders yet. <Link href="/shop" style={{ color: 'var(--ruby)', fontWeight: 600 }}>Start shopping →</Link></p>
       ) : (
         <div className={styles.orderList}>
-          {recentOrders.map((order: any) => (
+          {recentOrders.map((order) => (
             <Link key={order.id} href={`/account/orders/${order.id}`} className={styles.orderCard}>
               <div className={styles.orderHeader}>
                 <h4>{order.orderNumber}</h4>
                 <span className={`${styles.orderStatus} ${statusClass(order.status)}`}>{order.status}</span>
               </div>
               <div className={styles.orderItems}>
-                {order.items?.slice(0, 4).map((item: any, i: number) => (
+                {order.items?.slice(0, 4).map((item, i) => (
                   <div key={i} className={styles.orderThumb}>
                     {item.productImage && <img src={item.productImage} alt="" />}
                   </div>

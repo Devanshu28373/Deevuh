@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import type { AdminCustomer } from '@/lib/types';
 import styles from '../admin.module.css';
 
 export default function AdminCustomersPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -18,7 +19,7 @@ export default function AdminCustomersPage() {
     setLoading(true);
     try {
       const params = search ? `?search=${encodeURIComponent(search)}` : '';
-      const res = await api.get<any[]>(`/admin/customers${params}`);
+      const res = await api.get<AdminCustomer[]>(`/admin/customers${params}`);
       setCustomers(Array.isArray(res.data) ? res.data : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -54,14 +55,14 @@ export default function AdminCustomersPage() {
               <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40 }}>Loading...</td></tr>
             ) : customers.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>No customers found</td></tr>
-            ) : customers.map((c: any) => (
+            ) : customers.map((c) => (
               <tr key={c.id}>
-                <td><strong>{c.firstName} {c.lastName}</strong></td>
-                <td style={{ color: 'var(--gray-500)' }}>{c.email}</td>
-                <td>{c._count?.orders || 0}</td>
-                <td>{c.loyaltyPoints}</td>
-                <td><span className={`${styles.statusBadge} ${styles.statusConfirmed}`}>{c.loyaltyTier}</span></td>
-                <td style={{ fontSize: 12 }}>{new Date(c.createdAt).toLocaleDateString('en-IN')}</td>
+                <td><strong>{c.firstName ?? '—'} {c.lastName ?? ''}</strong></td>
+                <td style={{ color: 'var(--gray-500)' }}>{c.email ?? '—'}</td>
+                <td>{c._count?.orders ?? 0}</td>
+                <td>{c.loyaltyPoints ?? 0}</td>
+                <td><span className={`${styles.statusBadge} ${styles.statusConfirmed}`}>{c.loyaltyTier ?? 'BRONZE'}</span></td>
+                <td style={{ fontSize: 12 }}>{c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : '—'}</td>
               </tr>
             ))}
           </tbody>

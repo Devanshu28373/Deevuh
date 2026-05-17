@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
+import type { AdminOrder } from '@/lib/types';
 import styles from '../admin.module.css';
 
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
-
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [updatingId, setUpdatingId] = useState('');
@@ -20,7 +18,7 @@ export default function AdminOrdersPage() {
     setLoading(true);
     try {
       const params = filter ? `?status=${filter}` : '';
-      const res = await api.get<any[]>(`/admin/orders${params}`);
+      const res = await api.get<AdminOrder[]>(`/admin/orders${params}`);
       setOrders(Array.isArray(res.data) ? res.data : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -32,7 +30,7 @@ export default function AdminOrdersPage() {
       await api.put(`/admin/orders/${orderId}/status`, { status: newStatus });
       await fetchOrders();
     } catch (err: any) {
-      alert(err.message || 'Failed to update');
+      alert(err?.message || 'Failed to update');
     } finally {
       setUpdatingId('');
     }
@@ -77,13 +75,13 @@ export default function AdminOrdersPage() {
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40 }}>Loading...</td></tr>
             ) : orders.length === 0 ? (
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>No orders found</td></tr>
-            ) : orders.map((order: any) => (
+            ) : orders.map((order) => (
               <tr key={order.id} style={{ opacity: updatingId === order.id ? 0.5 : 1 }}>
                 <td><strong>{order.orderNumber}</strong></td>
-                <td>{order.user?.firstName} {order.user?.lastName}<br /><span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{order.user?.email}</span></td>
-                <td>{order.items?.length}</td>
-                <td>{formatPrice(order.total)}</td>
-                <td style={{ fontSize: 12 }}>{order.paymentMethod}</td>
+                <td>{order.user?.firstName ?? '—'} {order.user?.lastName ?? ''}<br /><span style={{ fontSize: 12, color: 'var(--gray-400)' }}>{order.user?.email ?? ''}</span></td>
+                <td>{order.items?.length ?? 0}</td>
+                <td>{formatPrice(order.total ?? 0)}</td>
+                <td style={{ fontSize: 12 }}>{order.paymentMethod ?? '—'}</td>
                 <td><span className={`${styles.statusBadge} ${statusClass(order.status)}`}>{order.status}</span></td>
                 <td>
                   <select

@@ -3,21 +3,8 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import ProductCard from '@/components/ProductCard/ProductCard';
+import type { WishlistItem } from '@/lib/types';
 import styles from '../account.module.css';
-
-interface WishlistItem {
-  id: string;
-  product: {
-    slug: string;
-    name: string;
-    basePrice: number;
-    compareAtPrice: number | null;
-    images: string[];
-    avgRating: number;
-    reviewCount: number;
-    category: { name: string };
-  };
-}
 
 export default function WishlistPage() {
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -25,7 +12,7 @@ export default function WishlistPage() {
 
   useEffect(() => {
     api.get<WishlistItem[]>('/wishlist')
-      .then(res => setItems(res.data))
+      .then(res => setItems(Array.isArray(res.data) ? res.data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -35,7 +22,7 @@ export default function WishlistPage() {
       await api.delete(`/wishlist/${id}`);
       setItems(prev => prev.filter(i => i.id !== id));
     } catch (err: any) {
-      alert(err.message);
+      alert(err?.message || 'Failed to remove item');
     }
   }
 
@@ -56,14 +43,14 @@ export default function WishlistPage() {
           {items.map(item => (
             <div key={item.id} style={{ position: 'relative' }}>
               <ProductCard
-                slug={item.product.slug}
-                name={item.product.name}
-                category={item.product.category?.name}
-                image={item.product.images[0] || '/images/placeholder.png'}
-                basePrice={item.product.basePrice}
-                compareAtPrice={item.product.compareAtPrice}
-                avgRating={item.product.avgRating}
-                reviewCount={item.product.reviewCount}
+                slug={item.product?.slug ?? ''}
+                name={item.product?.name ?? 'Product'}
+                category={item.product?.category?.name}
+                image={item.product?.images?.[0] || '/images/placeholder.png'}
+                basePrice={item.product?.basePrice ?? 0}
+                compareAtPrice={item.product?.compareAtPrice}
+                avgRating={item.product?.avgRating}
+                reviewCount={item.product?.reviewCount}
               />
               <button
                 onClick={() => handleRemove(item.id)}

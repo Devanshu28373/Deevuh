@@ -3,25 +3,27 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { formatPrice } from '@/lib/utils';
+import type { AdminStats } from '@/lib/types';
 import styles from './admin.module.css';
 
-function formatPrice(paise: number): string {
-  return `₹${(paise / 100).toLocaleString('en-IN')}`;
-}
-
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get<any>('/admin/stats')
-      .then(res => setStats(res.data))
-      .catch(console.error)
+    api.get<AdminStats>('/admin/stats')
+      .then(res => setStats(res.data ?? null))
+      .catch(err => {
+        console.error(err);
+        setError('Failed to load dashboard data.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <p>Loading dashboard...</p>;
-  if (!stats) return <p>Failed to load dashboard data.</p>;
+  if (error || !stats) return <p style={{ color: 'var(--error)' }}>{error || 'Failed to load dashboard data.'}</p>;
 
   const statusClass = (status: string) => {
     const map: Record<string, string> = {
@@ -42,21 +44,21 @@ export default function AdminDashboard() {
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <p className={styles.label}>Total Revenue</p>
-          <p className={styles.value}>{formatPrice(stats.totalRevenue)}</p>
+          <p className={styles.value}>{formatPrice(stats.totalRevenue ?? 0)}</p>
         </div>
         <div className={styles.statCard}>
           <p className={styles.label}>Total Orders</p>
-          <p className={styles.value}>{stats.totalOrders}</p>
-          <p className={styles.sub}>{stats.pendingOrders} pending</p>
+          <p className={styles.value}>{stats.totalOrders ?? 0}</p>
+          <p className={styles.sub}>{stats.pendingOrders ?? 0} pending</p>
         </div>
         <div className={styles.statCard}>
           <p className={styles.label}>Customers</p>
-          <p className={styles.value}>{stats.totalCustomers}</p>
+          <p className={styles.value}>{stats.totalCustomers ?? 0}</p>
         </div>
         <div className={styles.statCard}>
           <p className={styles.label}>Products</p>
-          <p className={styles.value}>{stats.totalProducts}</p>
-          <p className={styles.sub}>{stats.lowStockProducts} low stock</p>
+          <p className={styles.value}>{stats.totalProducts ?? 0}</p>
+          <p className={styles.sub}>{stats.lowStockProducts ?? 0} low stock</p>
         </div>
       </div>
 
@@ -78,12 +80,12 @@ export default function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {stats.recentOrders?.map((order: any) => (
+            {(stats.recentOrders ?? []).map((order) => (
               <tr key={order.id}>
                 <td><strong>{order.orderNumber}</strong></td>
-                <td>{order.user?.firstName} {order.user?.lastName}</td>
+                <td>{order.user?.firstName ?? '—'} {order.user?.lastName ?? ''}</td>
                 <td>{order.items?.length || 0}</td>
-                <td>{formatPrice(order.total)}</td>
+                <td>{formatPrice(order.total ?? 0)}</td>
                 <td><span className={`${styles.statusBadge} ${statusClass(order.status)}`}>{order.status}</span></td>
                 <td>{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
               </tr>
