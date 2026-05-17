@@ -1,6 +1,6 @@
 import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
 import { Resend } from 'resend';
-import { MeiliSearch } from 'meilisearch';
+import { Meilisearch } from 'meilisearch';
 import Razorpay from 'razorpay';
 import axios from 'axios';
 import env from '../config/env';
@@ -49,7 +49,7 @@ async function verifyResend() {
 
 async function verifyMeilisearch() {
   console.log('🔍 Checking Meilisearch...');
-  const client = new MeiliSearch({
+  const client = new Meilisearch({
     host: env.MEILISEARCH_HOST,
     apiKey: env.MEILISEARCH_API_KEY,
   });

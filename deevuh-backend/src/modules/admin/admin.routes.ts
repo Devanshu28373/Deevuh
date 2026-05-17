@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import prisma from '../../config/database';
 import { authenticate } from '../../middleware/auth';
+import { validate } from '../../middleware/validate';
 import { requireAdmin } from '../../middleware/adminGuard';
 import { sendSuccess } from '../../shared/utils/apiResponse';
 import { Errors } from '../../middleware/errorHandler';
+import { adminStatusUpdateSchema } from '../../shared/schemas';
 
 const router = Router();
 
@@ -41,10 +43,13 @@ router.get('/stats', async (_req, res, next) => {
 // GET /admin/orders — All orders with pagination
 router.get('/orders', async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const status = req.query.status as string;
-    const where = status ? { status: status as any } : {};
+
+    // Validate status if provided
+    const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURNED', 'REFUNDED'];
+    const where = status && validStatuses.includes(status) ? { status: status as any } : {};
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
@@ -67,15 +72,48 @@ router.get('/orders', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /admin/orders/:id/status — Update order status
-router.put('/orders/:id/status', async (req, res, next) => {
+// PUT /admin/orders/:id/status — Update order status (validated)
+router.put('/orders/:id/status', validate(adminStatusUpdateSchema), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
-    if (!validStatuses.includes(status)) {
-      throw Errors.badRequest('Invalid status');
+    // Fetch current order to validate transition
+    const currentOrder = await prisma.order.findUnique({ where: { id: id as string } });
+    if (!currentOrder) throw Errors.notFound('Order');
+
+    // Prevent invalid transitions
+    const invalidTransitions: Record<string, string[]> = {
+      DELIVERED: ['PENDING', 'CONFIRMED', 'PROCESSING'],
+      CANCELLED: ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED'],
+    };
+    const cantGoTo = invalidTransitions[currentOrder.status];
+    if (cantGoTo?.includes(status)) {
+      throw Errors.badRequest(`Cannot transition from ${currentOrder.status} to ${status}`, 'INVALID_STATUS_TRANSITION');
+    }
+
+    // Handle inventory restoration on cancellation
+    if (status === 'CANCELLED' && currentOrder.status !== 'CANCELLED') {
+      const items = await prisma.orderItem.findMany({ where: { orderId: id as string } });
+      await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQuantity: { increment: item.quantity } },
+          });
+        }
+        await tx.order.update({
+          where: { id: id as string },
+          data: { status, cancelledAt: new Date() },
+        });
+      });
+      const updated = await prisma.order.findUnique({
+        where: { id: id as string },
+        include: { items: true, user: { select: { email: true, firstName: true } } },
+      });
+      console.log(`[ADMIN] Order ${currentOrder.orderNumber} cancelled by admin`);
+      sendSuccess(res, updated);
+      return;
     }
 
     const order = await prisma.order.update({
@@ -84,6 +122,8 @@ router.put('/orders/:id/status', async (req, res, next) => {
       include: { items: true, user: { select: { email: true, firstName: true } } },
     });
 
+    console.log(`[ADMIN] Order ${order.orderNumber} status -> ${status}`);
+
     sendSuccess(res, order);
   } catch (err) { next(err); }
 });
@@ -91,8 +131,8 @@ router.put('/orders/:id/status', async (req, res, next) => {
 // GET /admin/products — All products
 router.get('/products', async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
@@ -113,8 +153,8 @@ router.get('/products', async (req, res, next) => {
 // GET /admin/customers — All customers
 router.get('/customers', async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const search = req.query.search as string;
 
     const where = search ? {
@@ -152,7 +192,7 @@ router.get('/promos', async (_req, res, next) => {
   try {
     const promos = await prisma.promoCode.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { usages: true } } },
+      include: { _count: { select: { promoUsages: true } } },
     });
     sendSuccess(res, promos);
   } catch (err) { next(err); }

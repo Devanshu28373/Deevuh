@@ -70,9 +70,11 @@ export async function getProducts(query: ProductQuery) {
 }
 
 export async function getProductBySlug(slug: string) {
-  // Check cache
-  const cached = await redis.get(RedisKeys.productCache(slug));
-  if (cached) return JSON.parse(cached);
+  // Check cache (graceful fallback if Redis is down)
+  try {
+    const cached = await redis.get(RedisKeys.productCache(slug));
+    if (cached) return JSON.parse(cached);
+  } catch { /* Redis down — proceed without cache */ }
 
   const product = await prisma.product.findUnique({
     where: { slug, isActive: true },
@@ -93,8 +95,10 @@ export async function getProductBySlug(slug: string) {
 
   if (!product) throw Errors.notFound('Product');
 
-  // Cache for 15 minutes
-  await redis.set(RedisKeys.productCache(slug), JSON.stringify(product), 'EX', RedisTTL.productCache);
+  // Best-effort cache write
+  try {
+    await redis.set(RedisKeys.productCache(slug), JSON.stringify(product), 'EX', RedisTTL.productCache);
+  } catch { /* Redis down — skip cache write */ }
 
   return product;
 }

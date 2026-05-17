@@ -3,13 +3,22 @@ import prisma from '../../config/database';
 import redis, { RedisKeys, RedisTTL } from '../../config/redis';
 import { sendSuccess } from '../../shared/utils/apiResponse';
 import { authenticate, authorize } from '../../middleware/auth';
+import { validate } from '../../middleware/validate';
+import { categoryCreateSchema } from '../../shared/schemas';
 
 const router = Router();
 
-// GET /categories — all categories (cached)
+// GET /categories — all categories (cached with Redis failure fallback)
 router.get('/', async (req: Request, res: Response, next) => {
   try {
-    const cached = await redis.get(RedisKeys.categoryCache());
+    // Try cache first, but fallback gracefully if Redis is down
+    let cached: string | null = null;
+    try {
+      cached = await redis.get(RedisKeys.categoryCache());
+    } catch {
+      // Redis down — proceed without cache
+    }
+
     if (cached) { sendSuccess(res, JSON.parse(cached)); return; }
 
     const categories = await prisma.category.findMany({
@@ -18,7 +27,13 @@ router.get('/', async (req: Request, res: Response, next) => {
       include: { children: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } } },
     });
 
-    await redis.set(RedisKeys.categoryCache(), JSON.stringify(categories), 'EX', RedisTTL.categoryCache);
+    // Best-effort cache write
+    try {
+      await redis.set(RedisKeys.categoryCache(), JSON.stringify(categories), 'EX', RedisTTL.categoryCache);
+    } catch {
+      // Redis down — skip cache write
+    }
+
     sendSuccess(res, categories);
   } catch (err) { next(err); }
 });
@@ -35,11 +50,12 @@ router.get('/:slug', async (req: Request<{ slug: string }>, res: Response, next)
   } catch (err) { next(err); }
 });
 
-// Admin: POST /categories
-router.post('/', authenticate, authorize('ADMIN', 'SUPER_ADMIN'), async (req: Request, res: Response, next) => {
+// Admin: POST /categories (validated)
+router.post('/', authenticate, authorize('ADMIN', 'SUPER_ADMIN'), validate(categoryCreateSchema), async (req: Request, res: Response, next) => {
   try {
     const category = await prisma.category.create({ data: req.body });
-    await redis.del(RedisKeys.categoryCache());
+    // Invalidate cache, best-effort
+    try { await redis.del(RedisKeys.categoryCache()); } catch { /* ignore */ }
     sendSuccess(res, category, 201);
   } catch (err) { next(err); }
 });

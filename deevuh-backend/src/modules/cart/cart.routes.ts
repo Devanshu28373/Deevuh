@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { authenticate, optionalAuth } from '../../middleware/auth';
+import { validate } from '../../middleware/validate';
 import prisma from '../../config/database';
 import { sendSuccess, sendNoContent } from '../../shared/utils/apiResponse';
 import { Errors } from '../../middleware/errorHandler';
+import { addToCartSchema, updateCartItemSchema, mergeCartSchema } from './cart.schemas';
 
 const router = Router();
 
@@ -41,25 +43,43 @@ router.get('/', optionalAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /cart/items
-router.post('/items', optionalAuth, async (req, res, next) => {
+// POST /cart/items — add item to cart
+router.post('/items', optionalAuth, validate(addToCartSchema), async (req, res, next) => {
   try {
-    const { productId, variantId, quantity = 1 } = req.body;
+    const { productId, variantId, quantity } = req.body;
     const userId = req.user?.userId;
     const sessionId = req.headers['x-session-id'] as string;
 
     if (!userId && !sessionId) throw Errors.badRequest('Authentication or session ID required');
 
-    // Validate stock
-    const variant = await prisma.productVariant.findUnique({ where: { id: variantId } });
-    if (!variant || variant.stockQuantity < quantity) {
-      throw Errors.badRequest('Insufficient stock', 'INSUFFICIENT_STOCK');
+    // Validate product exists and is active
+    const product = await prisma.product.findFirst({
+      where: { id: productId, isActive: true },
+    });
+    if (!product) throw Errors.notFound('Product');
+
+    // Validate variant exists, belongs to this product, and has stock
+    const variant = await prisma.productVariant.findFirst({
+      where: { id: variantId, productId, isActive: true },
+    });
+    if (!variant) throw Errors.notFound('Product variant');
+    if (variant.stockQuantity < quantity) {
+      throw Errors.badRequest(`Only ${variant.stockQuantity} units available`, 'INSUFFICIENT_STOCK');
     }
 
     // Find or create cart
     let cart = await prisma.cart.findFirst({ where: userId ? { userId } : { sessionId } });
     if (!cart) {
       cart = await prisma.cart.create({ data: userId ? { userId } : { sessionId } });
+    }
+
+    // Check if adding would exceed stock when combined with existing cart quantity
+    const existingItem = await prisma.cartItem.findUnique({
+      where: { cartId_variantId: { cartId: cart.id, variantId } },
+    });
+    const totalQuantity = (existingItem?.quantity || 0) + quantity;
+    if (totalQuantity > variant.stockQuantity) {
+      throw Errors.badRequest(`Only ${variant.stockQuantity} units available (${existingItem?.quantity || 0} already in cart)`, 'INSUFFICIENT_STOCK');
     }
 
     // Upsert cart item
@@ -78,16 +98,21 @@ router.post('/items', optionalAuth, async (req, res, next) => {
 });
 
 // PUT /cart/items/:id — update quantity
-router.put('/items/:id', optionalAuth, async (req, res, next) => {
+router.put('/items/:id', optionalAuth, validate(updateCartItemSchema), async (req, res, next) => {
   try {
     const { quantity } = req.body;
-    if (!quantity || quantity < 1) throw Errors.badRequest('Quantity must be at least 1');
+    const userId = req.user?.userId;
+    const sessionId = req.headers['x-session-id'] as string;
 
     const cartItem = await prisma.cartItem.findUnique({
       where: { id: req.params.id as string },
-      include: { variant: true },
+      include: { variant: true, cart: true },
     });
     if (!cartItem) throw Errors.notFound('Cart item');
+
+    // Ownership check — ensure this cart item belongs to the current user/session
+    if (userId && cartItem.cart.userId !== userId) throw Errors.forbidden('Access denied');
+    if (!userId && cartItem.cart.sessionId !== sessionId) throw Errors.forbidden('Access denied');
 
     // Validate stock
     if (cartItem.variant.stockQuantity < quantity) {
@@ -110,16 +135,27 @@ router.put('/items/:id', optionalAuth, async (req, res, next) => {
 // DELETE /cart/items/:id
 router.delete('/items/:id', optionalAuth, async (req, res, next) => {
   try {
+    const userId = req.user?.userId;
+    const sessionId = req.headers['x-session-id'] as string;
+
+    // Ownership check before deletion
+    const cartItem = await prisma.cartItem.findUnique({
+      where: { id: req.params.id as string },
+      include: { cart: true },
+    });
+    if (!cartItem) throw Errors.notFound('Cart item');
+    if (userId && cartItem.cart.userId !== userId) throw Errors.forbidden('Access denied');
+    if (!userId && cartItem.cart.sessionId !== sessionId) throw Errors.forbidden('Access denied');
+
     await prisma.cartItem.delete({ where: { id: req.params.id as string } });
     sendNoContent(res);
   } catch (err) { next(err); }
 });
 
 // POST /cart/merge — merge guest cart into authenticated cart on login
-router.post('/merge', authenticate, async (req, res, next) => {
+router.post('/merge', authenticate, validate(mergeCartSchema), async (req, res, next) => {
   try {
     const { sessionId } = req.body;
-    if (!sessionId) { sendSuccess(res, { merged: 0 }); return; }
 
     const guestCart = await prisma.cart.findFirst({
       where: { sessionId },
@@ -136,24 +172,30 @@ router.post('/merge', authenticate, async (req, res, next) => {
       userCart = await prisma.cart.create({ data: { userId: req.user!.userId } });
     }
 
-    // Merge items — upsert each guest item into user cart
+    // Merge items in a transaction
     let mergedCount = 0;
-    for (const item of guestCart.items) {
-      await prisma.cartItem.upsert({
-        where: { cartId_variantId: { cartId: userCart.id, variantId: item.variantId } },
-        update: { quantity: { increment: item.quantity } },
-        create: {
-          cartId: userCart.id,
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-        },
-      });
-      mergedCount++;
-    }
+    await prisma.$transaction(async (tx) => {
+      for (const item of guestCart.items) {
+        // Check stock before merging
+        const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
+        if (!variant || variant.stockQuantity < item.quantity) continue; // skip unavailable
 
-    // Delete guest cart
-    await prisma.cart.delete({ where: { id: guestCart.id } });
+        await tx.cartItem.upsert({
+          where: { cartId_variantId: { cartId: userCart!.id, variantId: item.variantId } },
+          update: { quantity: { increment: item.quantity } },
+          create: {
+            cartId: userCart!.id,
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+          },
+        });
+        mergedCount++;
+      }
+
+      // Delete guest cart
+      await tx.cart.delete({ where: { id: guestCart.id } });
+    });
 
     sendSuccess(res, { merged: mergedCount });
   } catch (err) { next(err); }
