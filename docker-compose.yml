@@ -1,5 +1,10 @@
 version: '3.8'
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Deevuh — Local Development Environment
+# Usage: docker compose up -d
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 services:
   postgres:
     image: postgres:15-alpine

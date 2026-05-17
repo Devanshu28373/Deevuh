@@ -5,8 +5,10 @@ import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import env from './config/env';
+import { logger } from './config/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter } from './middleware/rateLimiter';
+import healthRoutes from './config/healthcheck';
 
 // Route imports
 import authRoutes from './modules/auth/auth.routes';
@@ -25,31 +27,74 @@ import adminRoutes from './modules/admin/admin.routes';
 
 const app = express();
 
-// ─── Security & Parsing ───
-app.use(helmet());
+// ─── Trust Proxy (required behind ALB/Nginx/Cloudflare) ───
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// ─── Security Headers ───
+app.use(helmet({
+  contentSecurityPolicy: env.NODE_ENV === 'production' ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
+      frameSrc: ["'self'", 'https://api.razorpay.com'],
+      connectSrc: ["'self'", env.FRONTEND_URL],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  } : false,
+  crossOriginEmbedderPolicy: false, // Required for external image loading
+  hsts: env.NODE_ENV === 'production' ? {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  } : false,
+}));
+
+// ─── CORS (explicit origin whitelist) ───
+const ALLOWED_ORIGINS = [
+  env.FRONTEND_URL,
+  // Add staging URL when needed
+].filter(Boolean);
+
 app.use(cors({
-  origin: env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, health checks)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    logger.warn('CORS blocked request', { origin });
+    return callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id'],
+  maxAge: 86400, // Cache preflight for 24h
 }));
+
+// ─── Compression & Parsing ───
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 
-// ─── Logging ───
+// ─── Request Logging ───
 if (env.NODE_ENV !== 'test') {
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  if (env.NODE_ENV === 'production') {
+    // JSON access log for production
+    app.use(morgan(':method :url :status :response-time ms', {
+      stream: { write: (msg: string) => logger.info(msg.trim(), { type: 'access' }) },
+    }));
+  } else {
+    app.use(morgan('dev'));
+  }
 }
 
 // ─── Rate Limiting ───
 app.use('/api', apiLimiter);
 
-// ─── Health Check ───
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// ─── Health Check Routes (no auth, no rate limit) ───
+app.use('/', healthRoutes);
 
 // ─── API Routes ───
 app.use('/api/auth', authRoutes);

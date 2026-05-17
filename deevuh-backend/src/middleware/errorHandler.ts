@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../config/logger';
 
 // Custom error class
 export class AppError extends Error {
@@ -29,7 +30,19 @@ export const Errors = {
 
 // Global error handler middleware
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
+  // ─── Operational Errors (expected) ───
   if (err instanceof AppError) {
+    // Only log server errors (5xx) at error level; 4xx at warn
+    if (err.statusCode >= 500) {
+      logger.error('Server error', {
+        code: err.code,
+        message: err.message,
+        method: req.method,
+        url: req.originalUrl,
+        ip: req.ip,
+      });
+    }
+
     res.status(err.statusCode).json({
       success: false,
       error: {
@@ -40,7 +53,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     return;
   }
 
-  // Prisma errors
+  // ─── Prisma Errors ───
   if (err.constructor.name === 'PrismaClientKnownRequestError') {
     const prismaErr = err as any;
     if (prismaErr.code === 'P2002') {
@@ -62,7 +75,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     }
   }
 
-  // Zod validation errors
+  // ─── Zod Validation Errors ───
   if (err.constructor.name === 'ZodError') {
     const zodErr = err as any;
     res.status(422).json({
@@ -76,8 +89,15 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     return;
   }
 
-  // Unknown errors — redact in production
-  console.error('Unhandled error:', err);
+  // ─── Unknown Errors — log full details, redact from response ───
+  logger.error('Unhandled error', {
+    error: err.message,
+    stack: err.stack,
+    method: req.method,
+    url: req.originalUrl,
+    ip: req.ip,
+  });
+
   res.status(500).json({
     success: false,
     error: {
